@@ -1,0 +1,46 @@
+name: Build iOS IPA
+
+on:
+  push:
+    paths:
+      - 'flutter_attendance_app/**'
+      - '.github/workflows/ios.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-ipa:
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Configure and Build iOS
+        run: |
+          cd flutter_attendance_app
+          # Backup customized Info.plist if exists
+          if [ -f ios/Runner/Info.plist ]; then cp ios/Runner/Info.plist /tmp/custom_Info.plist; fi
+          # Ensure complete iOS template exists
+          flutter create --platforms=ios .
+          if [ -f /tmp/custom_Info.plist ]; then cp /tmp/custom_Info.plist ios/Runner/Info.plist; fi
+          flutter pub get
+          # Build release bundle for iOS without code signing
+          flutter build ios --release --no-codesign
+          
+          # Package into .ipa
+          mkdir -p Payload
+          cp -r build/ios/iphoneos/Runner.app Payload/
+          zip -r ShineAttendance.ipa Payload
+          cp ShineAttendance.ipa ../ShineAttendance.ipa
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShineAttendance-ipa
+          path: ShineAttendance.ipa
