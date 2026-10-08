@@ -21,22 +21,28 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: Configure and Build iOS
+      - name: Scaffold iOS Project
         run: |
           cd flutter_attendance_app
-          # Backup customized Info.plist if exists
-          if [ -f ios/Runner/Info.plist ]; then cp ios/Runner/Info.plist /tmp/custom_Info.plist; fi
-          # Ensure complete iOS template exists
-          flutter create --platforms=ios .
-          if [ -f /tmp/custom_Info.plist ]; then cp /tmp/custom_Info.plist ios/Runner/Info.plist; fi
+          # Backup customized Info.plist
+          cp ios/Runner/Info.plist /tmp/custom_Info.plist
+          # Scaffold iOS platform with correct project name
+          flutter create --platforms=ios --project-name=shine_attendance .
+          # Restore customized Info.plist with camera & location permissions
+          cp /tmp/custom_Info.plist ios/Runner/Info.plist
           flutter pub get
-          # Build release bundle for iOS without code signing
+
+      - name: Build iOS Release App
+        run: |
+          cd flutter_attendance_app
           flutter build ios --release --no-codesign
-          
-          # Package into .ipa
+
+      - name: Package into IPA
+        run: |
+          cd flutter_attendance_app
           mkdir -p Payload
           cp -r build/ios/iphoneos/Runner.app Payload/
-          zip -r ShineAttendance.ipa Payload
+          zip -qr ShineAttendance.ipa Payload
           cp ShineAttendance.ipa ../ShineAttendance.ipa
 
       - name: Upload IPA Artifact
@@ -44,3 +50,13 @@ jobs:
         with:
           name: ShineAttendance-ipa
           path: ShineAttendance.ipa
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BUILD_NUMBER=${{ github.run_number }}
+          gh release create "ios-v1.0.${BUILD_NUMBER}" ShineAttendance.ipa \
+            --title "Shine Attendance iOS 1.0.${BUILD_NUMBER}" \
+            --notes "ShineAttendance.ipa for iOS devices (Install using Sideloadly / AltStore / TestFlight)." \
+            --target "$GITHUB_SHA" || true
